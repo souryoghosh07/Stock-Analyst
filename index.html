@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Stock Analyst</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --error-color: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 24px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-top: 0;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            background-color: var(--bg-color);
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 12px;
+            color: var(--text-main);
+            font-size: 16px;
+            text-transform: uppercase;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .loader {
+            border: 3px solid #334155;
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            color: var(--error-color);
+            background-color: rgba(239, 68, 68, 0.1);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .result-header {
+            border-bottom: 1px solid #334155;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+
+        .ticker-badge {
+            background-color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .analysis-text {
+            line-height: 1.6;
+            color: #e2e8f0;
+            font-size: 15px;
+            text-align: justify;
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="search-page" class="card">
+            <h1>Stock Trend Analyst</h1>
+            <p class="subtitle">Enter a ticker to generate an LLM trajectory report</p>
+            
+            <div id="error-box" class="error-message hidden"></div>
+
+            <div class="form-group">
+                <label for="ticker-input">Ticker Symbol</label>
+                <input type="text" id="ticker-input" placeholder="e.g. AAPL, TSLA, MSFT" autocomplete="off">
+            </div>
+
+            <button id="analyze-btn" onclick="runAnalysis()">Analyze Trends</button>
+            <div id="loading-indicator" class="loader hidden"></div>
+        </div>
+
+        <div id="report-page" class="card hidden">
+            <div class="result-header">
+                <span id="res-ticker" class="ticker-badge">TICKER</span>
+                <span id="res-name" style="margin-left: 10px; font-weight: 600;">Company Name</span>
+                <div id="res-price" style="margin-top: 8px; color: var(--text-muted); font-size: 14px;">Current Price: --</div>
+            </div>
+
+            <div id="res-analysis" class="analysis-text">
+                </div>
+
+            <button onclick="resetSearch()">Search Another Ticker</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000/api/analyze';
+
+        async function runAnalysis() {
+            const tickerInput = document.getElementById('ticker-input');
+            const errorBox = document.getElementById('error-box');
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const loader = document.getElementById('loading-indicator');
+            
+            const ticker = tickerInput.value.trim();
+            
+            if (!ticker) {
+                showError("Please enter a valid stock ticker symbol.");
+                return;
+            }
+
+            // UI adjustments for processing state
+            errorBox.classList.add('hidden');
+            analyzeBtn.classList.add('hidden');
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ticker: ticker })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Failed to process stock analysis.");
+                }
+
+                // Populate fields on the report screen
+                document.getElementById('res-ticker').innerText = data.ticker;
+                document.getElementById('res-name').innerText = data.company_name;
+                document.getElementById('res-price').innerText = `Last Tracked Price: $${data.current_price}`;
+                document.getElementById('res-analysis').innerText = data.analysis;
+
+                // View Shift: Swap search page out, swap report page in
+                document.getElementById('search-page').classList.add('hidden');
+                document.getElementById('report-page').classList.remove('hidden');
+
+            } catch (err) {
+                showError(err.message);
+                analyzeBtn.classList.remove('hidden');
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        function resetSearch() {
+            // Clear input metrics
+            document.getElementById('ticker-input').value = '';
+            
+            // View Shift: Swap report page out, swap search page in
+            document.getElementById('report-page').classList.add('hidden');
+            document.getElementById('search-page').classList.remove('hidden');
+            document.getElementById('analyze-btn').classList.remove('hidden');
+        }
+
+        function showError(msg) {
+            const errorBox = document.getElementById('error-box');
+            errorBox.innerText = msg;
+            errorBox.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
