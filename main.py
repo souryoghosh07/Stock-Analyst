@@ -1,7 +1,9 @@
 # main.py
 
 import os
+import json
 import yfinance as yf
+import plotly.graph_objects as go
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -61,6 +63,27 @@ async def analyze_stock(request: TickerRequest):
             "Trailing EPS": info.get("trailingEps")
         }
         
+        # --- GENERATE PLOTLY CANDLESTICK CHART ---
+        fig = go.Figure(data=[go.Candlestick(
+            x=hist.index.strftime('%Y-%m-%d').tolist(),
+            open=hist['Open'].tolist(),
+            high=hist['High'].tolist(),
+            low=hist['Low'].tolist(),
+            close=hist['Close'].tolist(),
+            name=symbol
+        )])
+        
+        fig.update_layout(
+            title=f"{symbol} 3-Month Price History",
+            xaxis_title="Date",
+            yaxis_title="Price ($)",
+            template="plotly_dark", # Matches your application's slate dark theme
+            xaxis_rangeslider_visible=False, # Hides the distracting lower slider for a cleaner UI
+            margin=dict(l=40, r=40, t=60, b=40)
+        )
+        chart_json = json.loads(fig.to_json())
+        # ----------------------------------------
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error gathering stock data: {str(e)}")
 
@@ -69,11 +92,11 @@ async def analyze_stock(request: TickerRequest):
         metrics_summary = "\n".join([f"- {k}: {v}" for k, v in metrics.items() if v is not None])
         
         system_instruction = (
-            "You are an expert institutional financial analyst. Your task is to provide a neutral, "
+            "You are an expert institutional financial analyst. Your task is to provide a "
             "data-driven trend analysis paragraph based on the provided metrics and price trajectories. "
-            "CRITICAL RULE: Do not recommend buying, selling, or holding. Do not use advisory words like "
+            "CRITICAL RULE: Actively recommend buying, selling, or holding, based off your interpretation of the information . Use advisory words like "
             "'undervalued', 'overvalued', 'buy', or 'sell'. "
-            "Focus entirely on structural trajectories, momentum shifts, and operational margins. "
+            "Focus on structural trajectories, momentum shifts, and operational margins. "
             "Output your analysis in one or two, well-structured paragraphs."
         )
         
@@ -101,7 +124,8 @@ async def analyze_stock(request: TickerRequest):
             "ticker": symbol,
             "company_name": info.get("longName", symbol),
             "current_price": metrics["Current Price"],
-            "analysis": analysis_text
+            "analysis": analysis_text,
+            "chart": chart_json # Send the chart data back to the UI
         }
 
     except Exception as e:

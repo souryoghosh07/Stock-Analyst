@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLM Stock Analyst</title>
+    <!-- Include Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -28,7 +30,7 @@
 
         .container {
             width: 100%;
-            max-width: 600px;
+            max-width: 650px; /* Marginally widened container to better fit charts */
             padding: 24px;
         }
 
@@ -142,6 +144,15 @@
             text-align: justify;
             margin-bottom: 24px;
         }
+
+        /* Container for the newly embedded candlestick chart */
+        .chart-wrapper {
+            width: 100%;
+            height: 350px;
+            margin-bottom: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body>
@@ -169,8 +180,10 @@
                 <div id="res-price" style="margin-top: 8px; color: var(--text-muted); font-size: 14px;">Current Price: --</div>
             </div>
 
-            <div id="res-analysis" class="analysis-text">
-                </div>
+            <!-- Embedded Candlestick Chart Anchor -->
+            <div id="chart-container" class="chart-wrapper"></div>
+
+            <div id="res-analysis" class="analysis-text"></div>
 
             <button onclick="resetSearch()">Search Another Ticker</button>
         </div>
@@ -222,6 +235,11 @@
                 document.getElementById('search-page').classList.add('hidden');
                 document.getElementById('report-page').classList.remove('hidden');
 
+                // Render the Plotly chart natively using data from the API response
+                if (data.chart) {
+                    Plotly.newPlot('chart-container', data.chart.data, data.chart.layout, {responsive: true});
+                }
+
             } catch (err) {
                 showError(err.message);
                 analyzeBtn.classList.remove('hidden');
@@ -233,6 +251,9 @@
         function resetSearch() {
             // Clear input metrics
             document.getElementById('ticker-input').value = '';
+            
+            // Clear chart instance before next search
+            document.getElementById('chart-container').innerHTML = '';
             
             // View Shift: Swap report page out, swap search page in
             document.getElementById('report-page').classList.add('hidden');
